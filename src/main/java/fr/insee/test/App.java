@@ -13,6 +13,10 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Instant;
+import java.util.Date;
+
+import static java.time.LocalTime.now;
 
 /**
  * Hello world!
@@ -37,7 +41,9 @@ public class App
             } catch (IOException | InterruptedException e) {
                 return e.getMessage();
             }
-        },poller -> poller.poller(pm -> pm.fixedRate(5000/*5s*/)))
+        },
+                        poller -> poller.poller(pm -> pm.trigger(context -> context.lastActualExecutionTime()==null ? Date.from(Instant.now().plusSeconds(1)) :null))
+                )
                 .handle(System.out::println)
                 .get();
     }
