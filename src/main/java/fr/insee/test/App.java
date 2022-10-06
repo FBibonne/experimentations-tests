@@ -3,9 +3,15 @@ package fr.insee.test;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.integration.core.MessageSource;
 import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.dsl.IntegrationFlows;
+import org.springframework.integration.jdbc.store.JdbcMessageStore;
+import org.springframework.integration.store.MessageStore;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.support.MessageBuilder;
 
+import javax.sql.DataSource;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ProxySelector;
@@ -13,8 +19,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Instant;
-import java.util.Date;
 
 import static java.time.LocalTime.now;
 
@@ -25,27 +29,42 @@ import static java.time.LocalTime.now;
 @SpringBootApplication
 public class App
 {
+
+    private boolean runned=false;
     public static void main( String[] args )
     {
         SpringApplication.run(App.class, args);
     }
 
     @Bean
-    IntegrationFlow readerFlow(){
-        return IntegrationFlows.fromSupplier(()->{
-            var httpClient = HttpClient.newBuilder().proxy(ProxySelector.of(new InetSocketAddress("proxy-rie.http.insee.fr",8080))).build();
-            var request = HttpRequest.newBuilder().uri(URI.create("https://api.chucknorris.io/jokes/random")).build();
-            try {
-                var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                return response.body();
-            } catch (IOException | InterruptedException e) {
-                return e.getMessage();
-            }
-        },
-                        poller -> poller.poller(pm -> pm.trigger(context -> context.lastActualExecutionTime()==null ? Date.from(Instant.now().plusSeconds(1)) :null))
-                )
+    IntegrationFlow readerFlow(MessageStore messageStore){
+       //https://stackoverflow.com/questions/60690354/how-to-stop-polling-after-a-message-is-received-spring-integration
+        return IntegrationFlows.from(new MessageSource<String>() {
+                    @Override
+                    public Message<String> receive() {
+                        if (!runned) {
+                            runned = true;
+                            var httpClient = HttpClient.newBuilder().proxy(ProxySelector.of(new InetSocketAddress("proxy-rie.http.insee.fr", 8080))).build();
+                            var request = HttpRequest.newBuilder().uri(URI.create("https://api.chucknorris.io/jokes/random")).build();
+                            try {
+                                var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                                return MessageBuilder.withPayload(response.body()).build();
+                            } catch (IOException | InterruptedException e) {
+                                return MessageBuilder.withPayload(e.getMessage()).build();
+                            }
+                        } else {
+                            return null;
+                        }
+                    }
+                })
                 .handle(System.out::println)
+                .claimCheckIn(messageStore)
                 .get();
+    }
+
+    @Bean
+    public MessageStore messageStore(DataSource dataSource) {
+        return new JdbcMessageStore(dataSource);
     }
 
     /**
@@ -59,6 +78,7 @@ public class App
      * 2. retry sur ws si pas de réponse
      * 3. idempotence
      * 4. asynchrone (juste pour savoir comment on fait) ?
+     * 5. delayer (pour le DelayScheduling du CommandStore)
      * @return
      */
     //@Bean
