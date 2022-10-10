@@ -55,8 +55,8 @@ public class App
                         }
                     }
                 })
-                .handle(System.out::println)
                 .claimCheckIn(messageStore)
+                .handle(System.out::println)
                 .get();
     }
 
