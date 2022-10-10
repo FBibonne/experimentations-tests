@@ -20,8 +20,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
-import static java.time.LocalTime.now;
-
 /**
  * Hello world!
  *
@@ -76,9 +74,10 @@ public class App
      * COntraintes :
      * 1. persister le message (command store)
      * 2. retry sur ws si pas de réponse
-     * 3. idempotence
-     * 4. asynchrone (juste pour savoir comment on fait) ?
-     * 5. delayer (pour le DelayScheduling du CommandStore)
+     * 3. idempotence =>
+     * 4. Transactions distribuées
+     * 5. asynchrone (juste pour savoir comment on fait) ?
+     * 6. delayer (pour le DelayScheduling du CommandStore)
      * @return
      */
     //@Bean
