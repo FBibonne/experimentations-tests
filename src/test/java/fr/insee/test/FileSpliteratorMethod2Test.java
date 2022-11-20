@@ -53,13 +53,13 @@ class FileSpliteratorMethod2Test {
             "11, 10",
             "20, 21",
             "39, 34",
-            "105, 156",
+            "106, 156",
             "169, 156",
     })
     void findFirstEolAfterOrBefore_test(long position, long firstEol) throws IOException {
         var fileSpliterator = new FileSpliteratorMethod2(tempFile,0,content.length(), Optional.empty());
         assertEquals(10, FileSpliteratorMethod2.DEFAULT_LINE_SIZE);
-        assertEquals(firstEol, fileSpliterator.findFirstEolAfterOrBefore(position, 0, 94).getAsLong());
+        assertEquals(firstEol, fileSpliterator.findFirstEolAfterOrBefore(position, 0, 175).getAsLong());
     }
 
     @Test

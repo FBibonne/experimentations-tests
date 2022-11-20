@@ -189,14 +189,14 @@ public class FileSpliteratorMethod2 implements Spliterator<Line> {
         for (int i = 0; i < nbBufferRead; i++) {
             this.seekableByteChannel.position(position + i * bufferSize);
             this.seekableByteChannel.read(buffer);
-            var eolPosition = findEolIndexInBuffer(buffer);
+            var eolPosition = findEolIndexInBuffer(new DirectIterator(buffer), buffer);
             if (eolPosition.isPresent()) {
                 return OptionalLong.of(eolPosition.getAsInt() + position + i * bufferSize);
             }
             buffer.clear();
             this.seekableByteChannel.position(position - (i + 1) * bufferSize);
             this.seekableByteChannel.read(buffer);
-            eolPosition = findEolIndexInBuffer(buffer);
+            eolPosition = findEolIndexInBuffer(new ReverseIterator(buffer), buffer);
             if (eolPosition.isPresent()) {
                 return OptionalLong.of(eolPosition.getAsInt() + position - (i + 1) * bufferSize);
             }
@@ -206,14 +206,14 @@ public class FileSpliteratorMethod2 implements Spliterator<Line> {
         this.seekableByteChannel.position(position + nbBufferRead * bufferSize);
         buffer.limit(castToInt(minRange % bufferSize) + 1);
         this.seekableByteChannel.read(buffer);
-        var eolPosition = findEolIndexInBuffer(buffer);
+        var eolPosition = findEolIndexInBuffer(new DirectIterator(buffer), buffer);
         if (eolPosition.isPresent()) {
             return OptionalLong.of(eolPosition.getAsInt() + position + nbBufferRead * bufferSize);
         }
         buffer.clear();
         this.seekableByteChannel.position(position - minRange);
         this.seekableByteChannel.read(buffer);
-        eolPosition = findEolIndexInBuffer(buffer);
+        eolPosition = findEolIndexInBuffer(new ReverseIterator(buffer), buffer);
         if (eolPosition.isPresent()) {
             return OptionalLong.of(eolPosition.getAsInt() + position - minRange);
         }
@@ -226,7 +226,7 @@ public class FileSpliteratorMethod2 implements Spliterator<Line> {
             if ((end - position) > minRange) {
                 this.seekableByteChannel.position(position + offset + i * bufferSize);
                 this.seekableByteChannel.read(buffer);
-                eolPosition = findEolIndexInBuffer(buffer);
+                eolPosition = findEolIndexInBuffer(new DirectIterator(buffer), buffer);
                 if (eolPosition.isPresent()) {
                     return OptionalLong.of(eolPosition.getAsInt() + position + offset + i * bufferSize);
                 }
@@ -236,7 +236,7 @@ public class FileSpliteratorMethod2 implements Spliterator<Line> {
             if ((position - start) > minRange) {
                 this.seekableByteChannel.position(position - offset - (i + 1) * bufferSize);
                 this.seekableByteChannel.read(buffer);
-                eolPosition = findEolIndexInBuffer(buffer);
+                eolPosition = findEolIndexInBuffer(new ReverseIterator(buffer), buffer);
                 if (eolPosition.isPresent()) {
                     return OptionalLong.of(eolPosition.getAsInt() + position - offset - (i + 1) * bufferSize);
                 }
@@ -248,7 +248,7 @@ public class FileSpliteratorMethod2 implements Spliterator<Line> {
             this.seekableByteChannel.position(position + offset + nbBufferRead * bufferSize);
             buffer.limit(castToInt((maxRange - minRange) % bufferSize));
             this.seekableByteChannel.read(buffer);
-            eolPosition = findEolIndexInBuffer(buffer);
+            eolPosition = findEolIndexInBuffer(new DirectIterator(buffer), buffer);
             if (eolPosition.isPresent()) {
                 return OptionalLong.of(eolPosition.getAsInt() + position + offset + nbBufferRead * bufferSize);
             }
@@ -257,7 +257,7 @@ public class FileSpliteratorMethod2 implements Spliterator<Line> {
             buffer.limit(castToInt((maxRange - minRange) % bufferSize));
             this.seekableByteChannel.position(position - maxRange);
             this.seekableByteChannel.read(buffer);
-            eolPosition = findEolIndexInBuffer(buffer);
+            eolPosition = findEolIndexInBuffer(new ReverseIterator(buffer), buffer);
             if (eolPosition.isPresent()) {
                 return OptionalLong.of(eolPosition.getAsInt() + position - maxRange);
             }
@@ -265,8 +265,12 @@ public class FileSpliteratorMethod2 implements Spliterator<Line> {
         return OptionalLong.empty();
     }
 
-    private OptionalInt findEolIndexInBuffer(ByteBuffer buffer) {
-        for (int i = 0; i < buffer.limit(); i++) {
+    private ByteBufferIterator reverse(ByteBuffer buffer) {
+        return null;
+    }
+
+    private OptionalInt findEolIndexInBuffer(ByteBufferIterator bufferIterator, ByteBuffer buffer) {
+        for (int i = bufferIterator.startIteration(); bufferIterator.continueCondition(i); i=bufferIterator.nextIndex(i)) {
             if (buffer.get(i) == QuickFile.LF) {
                 return OptionalInt.of(i);
             }
@@ -284,5 +288,54 @@ public class FileSpliteratorMethod2 implements Spliterator<Line> {
         return CHARACTERISTICS;
     }
 
+    private interface ByteBufferIterator {
 
+        boolean continueCondition(int i);
+
+        int nextIndex(int i);
+
+        int startIteration();
+    }
+
+    private record DirectIterator(int end, int start) implements ByteBufferIterator {
+        public DirectIterator(ByteBuffer buffer) {
+            this(buffer.limit(),0);
+        }
+
+        @Override
+        public boolean continueCondition(int i) {
+            return i<end;
+        }
+
+        @Override
+        public int nextIndex(int i) {
+            return i+1;
+        }
+
+        @Override
+        public int startIteration() {
+            return start;
+        }
+    }
+
+    private record ReverseIterator(int end, int start) implements ByteBufferIterator {
+        public ReverseIterator(ByteBuffer buffer) {
+            this(0,buffer.limit()-1);
+        }
+
+        @Override
+        public boolean continueCondition(int i) {
+            return i>=end;
+        }
+
+        @Override
+        public int nextIndex(int i) {
+            return i-1;
+        }
+
+        @Override
+        public int startIteration() {
+            return start;
+        }
+    }
 }
