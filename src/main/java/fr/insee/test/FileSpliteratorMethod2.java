@@ -17,7 +17,9 @@ import java.util.function.Consumer;
 
 public class FileSpliteratorMethod2 implements Spliterator<Line> {
 
-    private static final int DEFAULT_LINE_SIZE = 80;
+    protected static final int DEFAULT_LINE_SIZE = System.getProperty("fileSpliterator.defaultLineSize")!=null?
+            Integer.parseInt(System.getProperty("fileSpliterator.defaultLineSize")):
+            80;
     private static final int DEFAULT_CHUNK_SIZE = DEFAULT_LINE_SIZE * QuickFile.nbBytesByChar();
     private static final int CHARACTERISTICS = IMMUTABLE | NONNULL | ORDERED | SORTED;
 
@@ -33,7 +35,6 @@ public class FileSpliteratorMethod2 implements Spliterator<Line> {
     /**
      * 1. le spliterator démarre forcément (valeur de start) après un EOL ou en position 0
      * 2. le spliterator finit forcément (valeur de end) sur un EOL ou juste avant un EOF(dernière position du fichier)
-     *
      */
     public FileSpliteratorMethod2(@NonNull Path filePath, long start, long end, @NonNull Optional<Charset> optionalCharset) throws IOException {
         if (start < 0 || start > end) {
@@ -41,9 +42,9 @@ public class FileSpliteratorMethod2 implements Spliterator<Line> {
         }
         this.seekableByteChannel = Files.newByteChannel(filePath, StandardOpenOption.READ);
         this.seekableByteChannel.position(start);
-        this.nextStartLinePosition=start;
+        this.nextStartLinePosition = start;
         this.end = end;
-        this.linesSizesStat=new LinesSizeStat();
+        this.linesSizesStat = new LinesSizeStat();
         decoder = optionalCharset.orElse(DEFAULT_CHARSET).newDecoder();
         this.filePath = filePath;
     }
@@ -57,7 +58,7 @@ public class FileSpliteratorMethod2 implements Spliterator<Line> {
      */
     public boolean tryAdvance(@NonNull Consumer<? super Line> action) {
         var allChunks = new ArrayList<Chunk>();
-        long startLinePosition=-1;
+        long startLinePosition = -1;
         try {
             startLinePosition = calcStartLinePosition();
             var nextChunkStartPosition = startLinePosition;
@@ -68,7 +69,7 @@ public class FileSpliteratorMethod2 implements Spliterator<Line> {
                     this.linesSizesStat.add(calcNbBytes(allChunks));
                     action.accept(new Line(startLinePosition, decode(allChunks)));
                     seekableByteChannel.position(chunk.absoluteEOLPosition());
-                    nextStartLinePosition=chunk.absoluteEOLPosition();
+                    nextStartLinePosition = chunk.absoluteEOLPosition();
                     return true;
                 }
                 nextChunkStartPosition = chunk.absoluteEndPosition() + 1;
@@ -77,17 +78,19 @@ public class FileSpliteratorMethod2 implements Spliterator<Line> {
             allChunks.clear();
             System.err.println(e);
             e.printStackTrace(System.err);
-            action.accept(new Line(startLinePosition,  "ERROR READING FILE : "+e.getMessage()));
-            this.seekableByteChannel.close();
+            action.accept(new Line(startLinePosition, "ERROR READING FILE : " + e.getMessage()));
+            // TODO this.seekableByteChannel.close();
             return false;
         }
         if (!allChunks.isEmpty()) {
             action.accept(new Line(startLinePosition, decode(allChunks)));
             // this.linesSizesStat.add(Line) : last line : won't call anymore computeChunkSize
-            nextStartLinePosition=end+1;
+            nextStartLinePosition = end + 1;
+            // seekableByteChannel.position(nextStartLinePosition); : last line : won't call anymore
+            //TODO this.seekableByteChannel.close();
             return true;
         }
-        this.seekableByteChannel.close();
+        //TODO this.seekableByteChannel.close();
         return false;
     }
 
@@ -98,25 +101,16 @@ public class FileSpliteratorMethod2 implements Spliterator<Line> {
 
 
     private Chunk readChunk(long chunkStartPosition) throws IOException {
-
-        int nbBytesRead;
-        ByteBuffer buffer;
-
-
-        buffer = ByteBuffer.wrap(new byte[castToInt(computeChunkSize(chunkStartPosition))]);
-
-        nbBytesRead = seekableByteChannel.read(buffer);
-
+        var buffer = ByteBuffer.wrap(new byte[castToInt(computeChunkSize(chunkStartPosition))]);
+        var nbBytesRead = seekableByteChannel.read(buffer);
         return new Chunk(buffer, chunkStartPosition, nbBytesRead);
-
-
     }
 
-    private int castToInt(long computeChunkSize) {
-        if (computeChunkSize>Integer.MAX_VALUE){
-            throw new Error("Impossible to cast "+computeChunkSize+" to int");
+    private int castToInt(long longToCast) {
+        if (longToCast > Integer.MAX_VALUE) {
+            throw new Error("Impossible to cast " + longToCast + " to int");
         }
-        return (int) computeChunkSize;
+        return (int) longToCast;
     }
 
     private String decode(List<Chunk> chunks) {
@@ -130,7 +124,7 @@ public class FileSpliteratorMethod2 implements Spliterator<Line> {
     private long calcNbBytes(ArrayList<Chunk> allChunks) {
         return allChunks.stream()
                 .peek(Chunk::setBufferPositionForDecode)
-                .mapToLong(c->((long)c.end())+1)
+                .mapToLong(c -> ((long) c.end()) + 1)
                 .sum();
     }
 
@@ -155,11 +149,12 @@ public class FileSpliteratorMethod2 implements Spliterator<Line> {
      * 1. the likelyhood size of a line
      * 2. or the default size if there is no likelyhood line size
      * 3. or the size to the end position for this FileSpliterator if the size found at 1 or 2 is too high
+     *
      * @return the size of the next chunk to be read
      */
     private long computeChunkSize(long startPosition) {
-        var retour=this.linesSizesStat.maxLikelyhood().orElse(DEFAULT_CHUNK_SIZE);
-        return Math.min (retour, end - startPosition +1 );
+        var retour = this.linesSizesStat.maxLikelyhood().orElse(DEFAULT_CHUNK_SIZE);
+        return Math.min(retour, end - startPosition + 1);
     }
 
     /*
@@ -171,34 +166,117 @@ public class FileSpliteratorMethod2 implements Spliterator<Line> {
      */
     @Override
     public Spliterator<Line> trySplit() {
-        var newEnd = findFirstEolAfterOrBefore((this.end+this.nextStartLinePosition)/2, this.nextStartLinePosition, this.end);
-        if (newEnd.isPresent()){
-            var oldEnd=this.end;
-            this.end=newEnd.getAsLong();
-            try {
-                return new FileSpliteratorMethod2(this.filePath, newEnd.getAsLong()+1, oldEnd, Optional.ofNullable(this.decoder.charset()));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+        try {
+            var newEnd = findFirstEolAfterOrBefore((this.end + this.nextStartLinePosition) / 2, this.nextStartLinePosition, this.end);
+            if (newEnd.isPresent()) {
+                var oldEnd = this.end;
+                this.end = newEnd.getAsLong();
+                seekableByteChannel.position(nextStartLinePosition);
+                return new FileSpliteratorMethod2(this.filePath, newEnd.getAsLong() + 1, oldEnd, Optional.ofNullable(this.decoder.charset()));
             }
-        }
+            seekableByteChannel.position(nextStartLinePosition);
+        } catch (IOException ignored) {}
         return null;
     }
 
-    private OptionalLong findFirstEolAfterOrBefore(long position, long start, long end) {
-        var maxRange=Math.max(position-start, end-position);
-        var minRange=Math.min(position-start, end-position);
-        for(long i=0;i<=minRange;i++){
-            if seekableByteChannel.
+    //TODO test
+    protected OptionalLong findFirstEolAfterOrBefore(long position, long start, long end) throws IOException {
+        var maxRange = Math.max(position - start, end - position);
+        var minRange = Math.min(position - start, end - position);
+        var bufferSize = this.linesSizesStat.maxLikelyhood().orElse(DEFAULT_CHUNK_SIZE);
+        var nbBufferRead = minRange / bufferSize;
+        var buffer = ByteBuffer.wrap(new byte[castToInt(bufferSize)]);
+        for (int i = 0; i < nbBufferRead; i++) {
+            this.seekableByteChannel.position(position + i * bufferSize);
+            this.seekableByteChannel.read(buffer);
+            var eolPosition = findEolIndexInBuffer(buffer);
+            if (eolPosition.isPresent()) {
+                return OptionalLong.of(eolPosition.getAsInt() + position + i * bufferSize);
+            }
+            buffer.clear();
+            this.seekableByteChannel.position(position - (i + 1) * bufferSize);
+            this.seekableByteChannel.read(buffer);
+            eolPosition = findEolIndexInBuffer(buffer);
+            if (eolPosition.isPresent()) {
+                return OptionalLong.of(eolPosition.getAsInt() + position - (i + 1) * bufferSize);
+            }
+            buffer.clear();
         }
-        for (long i=minRange+1;i<=maxRange;i++){
+        //read last buffer to min range :
+        this.seekableByteChannel.position(position + nbBufferRead * bufferSize);
+        buffer.limit(castToInt(minRange % bufferSize) + 1);
+        this.seekableByteChannel.read(buffer);
+        var eolPosition = findEolIndexInBuffer(buffer);
+        if (eolPosition.isPresent()) {
+            return OptionalLong.of(eolPosition.getAsInt() + position + nbBufferRead * bufferSize);
+        }
+        buffer.clear();
+        this.seekableByteChannel.position(position - minRange);
+        this.seekableByteChannel.read(buffer);
+        eolPosition = findEolIndexInBuffer(buffer);
+        if (eolPosition.isPresent()) {
+            return OptionalLong.of(eolPosition.getAsInt() + position - minRange);
+        }
+        buffer.clear();
+        //minRange to maxRange :
+        var offset = minRange + 1;
+        nbBufferRead = (maxRange - minRange) / bufferSize;
+        buffer = ByteBuffer.wrap(new byte[castToInt(bufferSize)]);
+        for (int i = 0; i < nbBufferRead; i++) {
+            if ((end - position) > minRange) {
+                this.seekableByteChannel.position(position + offset + i * bufferSize);
+                this.seekableByteChannel.read(buffer);
+                eolPosition = findEolIndexInBuffer(buffer);
+                if (eolPosition.isPresent()) {
+                    return OptionalLong.of(eolPosition.getAsInt() + position + offset + i * bufferSize);
+                }
+                buffer.clear();
 
+            }
+            if ((position - start) > minRange) {
+                this.seekableByteChannel.position(position - offset - (i + 1) * bufferSize);
+                this.seekableByteChannel.read(buffer);
+                eolPosition = findEolIndexInBuffer(buffer);
+                if (eolPosition.isPresent()) {
+                    return OptionalLong.of(eolPosition.getAsInt() + position - offset - (i + 1) * bufferSize);
+                }
+                buffer.clear();
+            }
+        }
+        //read last buffer to max range :
+        if ((end - position) > minRange) {
+            this.seekableByteChannel.position(position + offset + nbBufferRead * bufferSize);
+            buffer.limit(castToInt((maxRange - minRange) % bufferSize));
+            this.seekableByteChannel.read(buffer);
+            eolPosition = findEolIndexInBuffer(buffer);
+            if (eolPosition.isPresent()) {
+                return OptionalLong.of(eolPosition.getAsInt() + position + offset + nbBufferRead * bufferSize);
+            }
+        }
+        if ((position - start) > minRange) {
+            buffer.limit(castToInt((maxRange - minRange) % bufferSize));
+            this.seekableByteChannel.position(position - maxRange);
+            this.seekableByteChannel.read(buffer);
+            eolPosition = findEolIndexInBuffer(buffer);
+            if (eolPosition.isPresent()) {
+                return OptionalLong.of(eolPosition.getAsInt() + position - maxRange);
+            }
         }
         return OptionalLong.empty();
     }
 
+    private OptionalInt findEolIndexInBuffer(ByteBuffer buffer) {
+        for (int i = 0; i < buffer.limit(); i++) {
+            if (buffer.get(i) == QuickFile.LF) {
+                return OptionalInt.of(i);
+            }
+        }
+        return OptionalInt.empty();
+    }
+
     @Override
     public long estimateSize() {
-        return (this.end-this.nextStartLinePosition)/this.linesSizesStat.maxLikelyhood().orElse(DEFAULT_CHUNK_SIZE);
+        return (this.end - this.nextStartLinePosition) / this.linesSizesStat.maxLikelyhood().orElse(DEFAULT_CHUNK_SIZE);
     }
 
     @Override
