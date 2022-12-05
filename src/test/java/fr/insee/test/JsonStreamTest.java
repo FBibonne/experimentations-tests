@@ -19,7 +19,9 @@ class JsonStreamTest {
     @ValueSource(strings = {
             "{}",
             "{\"a\":1}",
-            "{\"a\":1.1}"
+            "{\"a\":1.1}",
+            "{\"a\":true}",
+            "{\"a\":false}"
     })
     void testStreams(String jsonString){
         // Given jsonString
