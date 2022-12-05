@@ -16,36 +16,23 @@ public class JsonStream {
         try (var jsonParser = Json.createParser(new StringReader(json));
              var jsonGenerator = Json.createGenerator(writer)
         ) {
-            String lastKey=null;
             while (jsonParser.hasNext()){
                 switch (jsonParser.next()){
                     case START_OBJECT -> jsonGenerator.writeStartObject();
-                    case END_OBJECT -> jsonGenerator.writeEnd();
-                    case KEY_NAME -> lastKey=jsonParser.getString();
+                    case END_OBJECT, END_ARRAY -> jsonGenerator.writeEnd();
+                    case KEY_NAME -> jsonGenerator.writeKey(jsonParser.getString());
                     case VALUE_NUMBER -> {
                         if (jsonParser.isIntegralNumber()){
-                            jsonGenerator.write(lastKey, jsonParser.getLong());
+                            jsonGenerator.write(jsonParser.getLong());
                         }else{
-                            jsonGenerator.write(lastKey, jsonParser.getBigDecimal());
+                            jsonGenerator.write(jsonParser.getBigDecimal());
                         }
-                        lastKey=null;
                     }
-                    case VALUE_TRUE -> {
-                        jsonGenerator.write(lastKey, true);
-                        lastKey=null;
-                    }
-                    case VALUE_FALSE -> {
-                        jsonGenerator.write(lastKey, false);
-                        lastKey=null;
-                    }
-                    case VALUE_STRING -> {
-                        jsonGenerator.write(lastKey, jsonParser.getString());
-                        lastKey=null;
-                    }
-                    case VALUE_NULL -> {
-                        jsonGenerator.writeNull(lastKey);
-                        lastKey=null;
-                    }
+                    case VALUE_TRUE -> jsonGenerator.write(true);
+                    case VALUE_FALSE -> jsonGenerator.write( false);
+                    case VALUE_STRING -> jsonGenerator.write(jsonParser.getString());
+                    case VALUE_NULL -> jsonGenerator.writeNull();
+                    case START_ARRAY -> jsonGenerator.writeStartArray();
                     default -> throw new IllegalStateException("Unexpected value: " + jsonParser.currentEvent());
                 }
             }
