@@ -42,6 +42,10 @@ public class JsonStream {
                         jsonGenerator.write(lastKey, jsonParser.getString());
                         lastKey=null;
                     }
+                    case VALUE_NULL -> {
+                        jsonGenerator.writeNull(lastKey);
+                        lastKey=null;
+                    }
                     default -> throw new IllegalStateException("Unexpected value: " + jsonParser.currentEvent());
                 }
             }

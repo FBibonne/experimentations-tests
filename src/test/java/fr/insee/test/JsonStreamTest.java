@@ -22,7 +22,8 @@ class JsonStreamTest {
             "{\"a\":1.1}",
             "{\"a\":true}",
             "{\"a\":false}",
-            "{\"a\":\"val\"}"
+            "{\"a\":\"val\"}",
+            "{\"a\":null}"
     })
     void testStreams(String jsonString){
         // Given jsonString
