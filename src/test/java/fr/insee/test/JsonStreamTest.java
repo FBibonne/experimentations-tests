@@ -27,10 +27,24 @@ class JsonStreamTest {
             "{\"a\":[]}",
             "{\"a\":[{\"b\":1}]}",
             "{\"a\":[{\"b\":1}, {\"c\":true}, {\"d\":null, \"e\":\"test\"}]}",
+            """
+                             {
+                               "firstName": "John", "lastName": "Smith", "age": 25,
+                               "address" : {
+                                   "streetAddress": "21 2nd Street",
+                                   "city": "New York",
+                                   "state": "NY",
+                                   "postalCode": "10021"
+                               },
+                               "phoneNumber": [
+                                   {"type": "home", "number": "212 555-1234"},
+                                   {"type": "fax", "number": "646 555-4567"}
+                                ]
+                             }
+                    """
 
     })
     void testStreams(String jsonString){
-        var js=toJson(jsonString);
         // Given jsonString
         //When
         var jsonProcessed = JsonStream.process(jsonString);
