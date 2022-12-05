@@ -18,7 +18,8 @@ class JsonStreamTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "{}",
-            "{\"a\":1}"
+            "{\"a\":1}",
+            "{\"a\":1.1}"
     })
     void testStreams(String jsonString){
         // Given jsonString

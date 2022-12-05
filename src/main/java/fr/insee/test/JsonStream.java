@@ -22,7 +22,14 @@ public class JsonStream {
                     case START_OBJECT -> jsonGenerator.writeStartObject();
                     case END_OBJECT -> jsonGenerator.writeEnd();
                     case KEY_NAME -> lastKey=jsonParser.getString();
-                    case VALUE_NUMBER -> jsonGenerator.write(lastKey, jsonParser.getLong());
+                    case VALUE_NUMBER -> {
+                        if (jsonParser.isIntegralNumber()){
+                            jsonGenerator.write(lastKey, jsonParser.getLong());
+                        }else{
+                            jsonGenerator.write(lastKey, jsonParser.getBigDecimal());
+                        }
+                        lastKey=null;
+                    }
                     default -> throw new IllegalStateException("Unexpected value: " + jsonParser.currentEvent());
                 }
             }
