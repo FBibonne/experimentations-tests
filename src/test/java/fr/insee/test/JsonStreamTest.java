@@ -25,9 +25,12 @@ class JsonStreamTest {
             "{\"a\":\"val\"}",
             "{\"a\":null}",
             "{\"a\":[]}",
+            "{\"a\":[{\"b\":1}]}",
+            "{\"a\":[{\"b\":1}, {\"c\":true}, {\"d\":null, \"e\":\"test\"}]}",
 
     })
     void testStreams(String jsonString){
+        var js=toJson(jsonString);
         // Given jsonString
         //When
         var jsonProcessed = JsonStream.process(jsonString);
