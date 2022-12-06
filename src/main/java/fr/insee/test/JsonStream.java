@@ -3,11 +3,8 @@ package fr.insee.test;
 import jakarta.json.Json;
 import lombok.NonNull;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.StringReader;
 import java.io.StringWriter;
-import java.nio.charset.StandardCharsets;
 
 public class JsonStream {
 
